@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const validator = require('validator');
 const supabase = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
 
@@ -18,11 +19,46 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Validar formato de email
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de email inválido'
+      });
+    }
+
+    // Validar username (solo letras, números y guiones bajos, 3-20 caracteres)
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({
+        success: false,
+        message: 'El username debe tener entre 3-20 caracteres (solo letras, números y guiones bajos)'
+      });
+    }
+
+    // Validar fortaleza de contraseña (mínimo 8 caracteres, al menos una letra y un número)
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe tener al menos 8 caracteres'
+      });
+    }
+
+    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe contener al menos una letra y un número'
+      });
+    }
+
+    // Sanitizar email y username
+    const sanitizedEmail = validator.normalizeEmail(email);
+    const sanitizedUsername = validator.escape(username.trim());
+
     // Verificar si el usuario ya existe
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
-      .or(`email.eq.${email},username.eq.${username}`)
+      .or(`email.eq.${sanitizedEmail},username.eq.${sanitizedUsername}`)
       .single();
 
     if (existingUser) {
@@ -32,8 +68,8 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Encriptar password
-    const salt = await bcrypt.genSalt(10);
+    // Encriptar password con bcrypt (12 rounds para mayor seguridad)
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Crear usuario en Supabase
@@ -41,12 +77,12 @@ router.post('/register', async (req, res) => {
       .from('users')
       .insert([
         {
-          username,
-          email,
+          username: sanitizedUsername,
+          email: sanitizedEmail,
           password: hashedPassword
         }
       ])
-      .select()
+      .select('id, username, email, created_at')
       .single();
 
     if (error) {
@@ -57,7 +93,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Crear token
+    // Crear token JWT
     const token = jwt.sign(
       { 
         id: newUser.id, 
@@ -101,14 +137,26 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // Validar formato de email
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de email inválido'
+      });
+    }
+
+    // Sanitizar email
+    const sanitizedEmail = validator.normalizeEmail(email);
+
     // Buscar usuario
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('email', sanitizedEmail)
       .single();
 
     if (error || !user) {
+      // No revelar si el email existe o no (seguridad)
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
@@ -125,7 +173,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Crear token
+    // Crear token JWT
     const token = jwt.sign(
       { 
         id: user.id, 
@@ -181,6 +229,7 @@ router.get('/verify', authMiddleware, async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error en verify:', error);
     res.status(500).json({
       success: false,
       message: 'Error en el servidor'
