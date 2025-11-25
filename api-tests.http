@@ -1,0 +1,164 @@
+### Variables
+@baseUrl = http://localhost:3001
+@email = test@example.com
+@password = password123
+@username = testuser
+
+###############################################
+# FLUJO COMPLETO DE TESTING
+###############################################
+
+###############################################
+# PASO 1: REGISTRO - Crear nueva cuenta
+###############################################
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "{user01223@gmail.com}",
+  "password": "{MiPassword12311}",
+  "username": "{user12344511}"
+}
+
+###############################################
+# PASO 2: LOGIN - Iniciar sesión
+###############################################
+# Las cookies de sesión se guardan automáticamente
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###############################################
+# PASO 3: OBTENER TOKEN CSRF
+###############################################
+# IMPORTANTE: Ejecuta esto ANTES de hacer logout
+# COPIA el token de la respuesta
+GET {{baseUrl}}/api/auth/csrf-token
+
+###############################################
+# PASO 4: LOGOUT - Con CSRF Protection
+###############################################
+# INSTRUCCIONES:
+# 1. Ejecuta el PASO 3 primero
+# 2. Copia el "csrfToken" de la respuesta
+# 3. Reemplaza TODO lo que está después de "x-csrf-token:" con el token
+# 4. Ejecuta esta petición
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+x-csrf-token: 799e0c911534decbebe332a3043ac4bcac46149ca1945408c2d1936ecab0ca3c.dd21ed1e1bec653d0b5bb9bdd5ec133fb00de7dfb2fefa7dc26e634228b87de0b4818316e79daf64368934b0a03580367711f27e1888ef5cc6e78b5fc29661df
+
+###############################################
+# VERIFICACIONES
+###############################################
+
+### VERIFICAR SESIÓN ACTIVA (después del login)
+GET {{baseUrl}}/api/auth/session
+Content-Type: application/json
+
+### OBTENER MENSAJES (ruta protegida - requiere login)
+GET {{baseUrl}}/api/messages
+Content-Type: application/json
+
+### REFRESCAR SESIÓN (requiere CSRF token)
+# Usa el token del PASO 3
+POST {{baseUrl}}/api/auth/refresh
+Content-Type: application/json
+x-csrf-token: 799e0c911534decbebe332a3043ac4bcac46149ca1945408c2d1936ecab0ca3c.dd21ed1e1bec653d0b5bb9bdd5ec133fb00de7dfb2fefa7dc26e634228b87de0b4818316e79daf64368934b0a03580367711f27e1888ef5cc6e78b5fc29661df
+
+### RUTA DE PRUEBA (sin autenticación)
+GET {{baseUrl}}/
+Content-Type: application/json
+
+###############################################
+# TESTS DE SEGURIDAD
+###############################################
+
+### Test 1: Rate Limiting - Intenta 6 logins seguidos
+# Ejecuta esta petición 6 veces
+# El 6to intento debe devolver 429 (Too Many Requests)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "wrong_password"
+}
+
+### Test 2: Registro con email inválido (debe fallar 400)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "correo-sin-arroba",
+  "password": "{{password}}",
+  "username": "{{username}}"
+}
+
+### Test 3: Registro con username corto (debe fallar 400)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "otro@example.com",
+  "password": "{{password}}",
+  "username": "ab"
+}
+
+### Test 4: Registro con password corto (debe fallar 400)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "otro@example.com",
+  "password": "123",
+  "username": "{{username}}"
+}
+
+### Test 5: Logout SIN token CSRF (debe fallar 403)
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+### Test 6: Logout con token CSRF inválido (debe fallar 403)
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+x-csrf-token: token-falso-123
+
+### Test 7: Acceder a /messages sin login (debe fallar 401)
+# Primero haz logout, luego ejecuta esto
+GET {{baseUrl}}/api/messages
+Content-Type: application/json
+
+### Test 8: Verificar sesión después de logout (debe fallar 401)
+# Ejecuta después de hacer logout
+GET {{baseUrl}}/api/auth/session
+Content-Type: application/json
+
+###############################################
+# NOTAS IMPORTANTES
+###############################################
+# 
+# 1. ORDEN DE EJECUCIÓN RECOMENDADO:
+#    - PASO 1: Registro (solo la primera vez)
+#    - PASO 2: Login
+#    - PASO 3: Obtener CSRF token
+#    - PASO 4: Logout (con el token del paso 3)
+#
+# 2. CSRF TOKENS:
+#    - Los tokens expiran
+#    - Obtén uno nuevo cada vez que necesites hacer logout/refresh
+#    - Reemplaza el valor completo después de "x-csrf-token:"
+#
+# 3. COOKIES:
+#    - REST Client las maneja automáticamente
+#    - Se guardan después del login
+#    - Se envían automáticamente en cada petición
+#
+# 4. RATE LIMITING:
+#    - Login/Register: 5 intentos cada 15 minutos
+#    - Otras rutas: 100 peticiones cada 15 minutos
+#
+###############################################

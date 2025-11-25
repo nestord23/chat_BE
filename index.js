@@ -1,4 +1,47 @@
 require('dotenv').config();
+
+// ============================================
+// PARCHE 3: Validación de Variables de Entorno
+// ============================================
+const requiredVars = {
+  JWT_SECRET: { minLength: 32 },
+  SUPABASE_URL: {},
+  SUPABASE_ANON_KEY: {},
+  FRONTEND_URL: {}
+};
+
+const errors = [];
+
+for (const [varName, options] of Object.entries(requiredVars)) {
+  const value = process.env[varName];
+
+  // Verificar si existe
+  if (!value || value.trim() === '') {
+    errors.push(`❌ ERROR: Variable ${varName} no definida o vacía`);
+    continue;
+  }
+
+  // Validar longitud mínima si se especifica
+  if (options.minLength && value.length < options.minLength) {
+    errors.push(
+      `❌ ERROR: Variable ${varName} debe tener al menos ${options.minLength} caracteres (actual: ${value.length})`
+    );
+  }
+}
+
+// Si hay errores, mostrarlos y salir
+if (errors.length > 0) {
+  console.error('\n🚨 ERRORES DE CONFIGURACIÓN:\n');
+  errors.forEach(error => console.error(error));
+  console.error('\n💡 Asegúrate de tener un archivo .env con todas las variables requeridas.\n');
+  process.exit(1);
+}
+
+console.log('✅ Variables de entorno validadas correctamente');
+
+// ============================================
+// Imports de módulos (DESPUÉS de validación)
+// ============================================
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -58,40 +101,27 @@ app.use(cors(corsOptions));
 app.use(cookieParser()); // IMPORTANTE: Para leer cookies
 app.use(express.json({ limit: '10kb' })); // Limitar tamaño del body
 
-// Rate Limiting - Protección contra fuerza bruta
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 intentos por IP
-  message: { 
-    success: false, 
-    message: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' 
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  statusCode: 429, // PATCH C: Código HTTP correcto
-});
-
 // Rate Limiting general
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 peticiones por IP
-  message: { 
-    success: false, 
-    message: 'Demasiadas peticiones. Intenta de nuevo más tarde.' 
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Demasiadas peticiones.'
+    });
   },
-  statusCode: 429, // PATCH C: Código HTTP correcto
+  standardHeaders: true,
+  legacyHeaders: false
 });
 
-// Aplicar rate limiting general
 app.use('/api/', generalLimiter);
 
-// PATCH C: Aplicar authLimiter ANTES de montar las rutas
+// ============================================
+// PARCHE 1 PARTE B: Simplificar montaje de authRoutes
+// ============================================
+// PARCHE 1: Rate limiter ahora está en routes/auth.js
 const authRoutes = require('./routes/auth');
-const router = express.Router();
-
-// Aplicar rate limiter específico a rutas de autenticación
-router.post('/login', authLimiter, authRoutes.stack.find(r => r.route?.path === '/login')?.route.stack[0].handle);
-router.post('/register', authLimiter, authRoutes.stack.find(r => r.route?.path === '/register')?.route.stack[0].handle);
 
 // Montar rutas de autenticación
 app.use('/api/auth', authRoutes);

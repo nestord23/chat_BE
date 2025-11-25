@@ -1,6 +1,43 @@
+# Dependencias
 node_modules/
+
+# Entornos
 .env
-.DS_Store
+.env.*          # .env.development, .env.production, etc.
+
+# Logs
 npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-debug.log
 *.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editor
 .vscode/
+.idea/
+
+# Archivos temporales o de pruebas
+*.tmp
+*.temp
+*.pid
+*.seed
+*.log
+*.bak
+
+# Cachés
+.cache/
+dist/
+build/
+coverage/
+
+# Archivos HTTP de pruebas
+.http
+.rest
+
+# Archivos de proyecto frontend (si tienes dentro)
+*.local
+*.sourcemap

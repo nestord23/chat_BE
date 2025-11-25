@@ -1,18 +1,43 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require('express-rate-limit'); // PARCHE 1: Rate limiting
 const validator = require('validator'); // PATCH B: Sanitización
 const { createSupabaseServerClient } = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
 const { csrfProtection, generateToken } = require('../middleware/csrf'); // PATCH A: CSRF
 
+// PARCHE 1: Rate limiter específico para autenticación
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // 5 intentos por IP
+  message: { 
+    success: false, 
+    message: 'Demasiados intentos, intenta de nuevo en 15 minutos' 
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+});
+
 // PATCH A: Endpoint para obtener token CSRF
 router.get('/csrf-token', (req, res) => {
-  const csrfToken = generateToken(req, res);
-  res.json({ csrfToken });
+  try {
+    const csrfToken = generateToken(req, res);
+    res.json({ 
+      success: true,
+      csrfToken 
+    });
+  } catch (error) {
+    console.error('Error generando token CSRF:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al generar token CSRF'
+    });
+  }
 });
 
 // REGISTRO con Supabase Auth
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
@@ -94,7 +119,7 @@ router.post('/register', async (req, res) => {
 });
 
 // LOGIN con Supabase Auth
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -141,8 +166,8 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// LOGOUT - PATCH A: Protegido con CSRF (temporalmente deshabilitado para testing)
-router.post('/logout', /* csrfProtection, */ authMiddleware, async (req, res) => {
+// LOGOUT - PARCHE 2: CSRF habilitado en logout para prevenir CSRF attacks
+router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
 
