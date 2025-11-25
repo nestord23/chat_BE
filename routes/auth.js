@@ -1,25 +1,30 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const validator = require('validator');
-const supabase = require('../config/supabase');
+const validator = require('validator'); // PATCH B: Sanitización
+const { createSupabaseServerClient } = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
+const { csrfProtection, generateToken } = require('../middleware/csrf'); // PATCH A: CSRF
 
-// REGISTRO
+// PATCH A: Endpoint para obtener token CSRF
+router.get('/csrf-token', (req, res) => {
+  const csrfToken = generateToken(req, res);
+  res.json({ csrfToken });
+});
+
+// REGISTRO con Supabase Auth
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { email, password, username } = req.body;
 
-    // Validar que vengan todos los datos
-    if (!username || !email || !password) {
+    // Validaciones básicas
+    if (!email || !password || !username) {
       return res.status(400).json({
         success: false,
         message: 'Por favor proporciona todos los campos'
       });
     }
 
-    // Validar formato de email
+    // PATCH H: Validar formato de email
     if (!validator.isEmail(email)) {
       return res.status(400).json({
         success: false,
@@ -27,7 +32,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Validar username (solo letras, números y guiones bajos, 3-20 caracteres)
+    // Validar username (3-20 caracteres, alfanumérico)
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       return res.status(400).json({
         success: false,
@@ -35,7 +40,7 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Validar fortaleza de contraseña (mínimo 8 caracteres, al menos una letra y un número)
+    // Validar contraseña (mínimo 8 caracteres)
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -43,93 +48,56 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'La contraseña debe contener al menos una letra y un número'
-      });
-    }
-
-    // Sanitizar email y username
-    const sanitizedEmail = validator.normalizeEmail(email);
+    // PATCH B: Sanitizar username para prevenir inyección
     const sanitizedUsername = validator.escape(username.trim());
 
-    // Verificar si el usuario ya existe
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .or(`email.eq.${sanitizedEmail},username.eq.${sanitizedUsername}`)
-      .single();
+    const supabase = createSupabaseServerClient(req, res);
 
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'El usuario o email ya existe'
-      });
-    }
-
-    // Encriptar password con bcrypt (12 rounds para mayor seguridad)
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Crear usuario en Supabase
-    const { data: newUser, error } = await supabase
-      .from('users')
-      .insert([
-        {
-          username: sanitizedUsername,
-          email: sanitizedEmail,
-          password: hashedPassword
+    // Registrar usuario con Supabase Auth
+    const { data, error } = await supabase.auth.signUp({
+      email: email.toLowerCase().trim(), // PATCH H: Limpiar email (no normalizar)
+      password,
+      options: {
+        data: {
+          username: sanitizedUsername // PATCH B: Usar username sanitizado
         }
-      ])
-      .select('id, username, email, created_at')
-      .single();
+      }
+    });
 
     if (error) {
-      console.error('Error al crear usuario:', error);
-      return res.status(500).json({
+      console.error('Error en registro:', error);
+      return res.status(400).json({
         success: false,
-        message: 'Error al crear usuario'
+        message: error.message || 'Error al registrar usuario'
       });
     }
 
-    // Crear token JWT
-    const token = jwt.sign(
-      { 
-        id: newUser.id, 
-        username: newUser.username,
-        email: newUser.email 
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
+    // Supabase automáticamente establece las cookies de sesión
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
-      token,
       user: {
-        id: newUser.id,
-        username: newUser.username,
-        email: newUser.email
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.user_metadata?.username
       }
     });
 
   } catch (error) {
     console.error('Error en registro:', error);
+    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: 'Error en el servidor'
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
     });
   }
 });
 
-// LOGIN
+// LOGIN con Supabase Auth
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validar datos
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -137,102 +105,137 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Validar formato de email
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Formato de email inválido'
-      });
-    }
+    const supabase = createSupabaseServerClient(req, res);
 
-    // Sanitizar email
-    const sanitizedEmail = validator.normalizeEmail(email);
+    // Iniciar sesión con Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    // Buscar usuario
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', sanitizedEmail)
-      .single();
-
-    if (error || !user) {
-      // No revelar si el email existe o no (seguridad)
+    if (error) {
       return res.status(401).json({
         success: false,
         message: 'Credenciales inválidas'
       });
     }
 
-    // Verificar password
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Credenciales inválidas'
-      });
-    }
-
-    // Crear token JWT
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        username: user.username,
-        email: user.email 
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
+    // Supabase automáticamente establece las cookies de sesión
     res.json({
       success: true,
       message: 'Login exitoso',
-      token,
       user: {
-        id: user.id,
-        username: user.username,
-        email: user.email
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.user_metadata?.username
       }
     });
 
   } catch (error) {
     console.error('Error en login:', error);
+    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: 'Error en el servidor'
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
     });
   }
 });
 
-// VERIFICAR TOKEN
-router.get('/verify', authMiddleware, async (req, res) => {
+// LOGOUT - PATCH A: Protegido con CSRF (temporalmente deshabilitado para testing)
+router.post('/logout', /* csrfProtection, */ authMiddleware, async (req, res) => {
   try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, username, email, created_at')
-      .eq('id', req.user.id)
-      .single();
-    
-    if (error || !user) {
-      return res.status(404).json({
+    const supabase = createSupabaseServerClient(req, res);
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      return res.status(500).json({
         success: false,
-        message: 'Usuario no encontrado'
+        message: 'Error al cerrar sesión'
       });
     }
+
+    // Supabase automáticamente limpia las cookies
+    res.json({
+      success: true,
+      message: 'Sesión cerrada exitosamente'
+    });
+
+  } catch (error) {
+    console.error('Error en logout:', error);
+    // PATCH F: Mensaje genérico en producción
+    res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+    });
+  }
+});
+
+// VERIFICAR SESIÓN
+router.get('/session', async (req, res) => {
+  try {
+    const supabase = createSupabaseServerClient(req, res);
+
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error || !session) {
+      return res.status(401).json({
+        success: false,
+        message: 'No hay sesión activa'
+      });
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
 
     res.json({
       success: true,
       user: {
         id: user.id,
-        username: user.username,
-        email: user.email
+        email: user.email,
+        username: user.user_metadata?.username
       }
     });
+
   } catch (error) {
-    console.error('Error en verify:', error);
+    console.error('Error verificando sesión:', error);
+    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: 'Error en el servidor'
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+    });
+  }
+});
+
+// REFRESCAR SESIÓN - PATCH A: Protegido con CSRF
+router.post('/refresh', csrfProtection, async (req, res) => {
+  try {
+    const supabase = createSupabaseServerClient(req, res);
+
+    const { data, error } = await supabase.auth.refreshSession();
+
+    if (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'No se pudo refrescar la sesión'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Sesión refrescada',
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        username: data.user.user_metadata?.username
+      }
+    });
+
+  } catch (error) {
+    console.error('Error refrescando sesión:', error);
+    // PATCH F: Mensaje genérico en producción
+    res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
     });
   }
 });

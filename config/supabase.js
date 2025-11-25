@@ -1,13 +1,42 @@
-require('dotenv').config(); // ← AGREGAR ESTA LÍNEA
-const { createClient } = require("@supabase/supabase-js");
+// NOTA: dotenv se carga en index.js, no aquí
+const { createServerClient } = require('@supabase/ssr');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY; // Y cambiar a SUPABASE_ANON_KEY o cambiar el .env
+// DEBUG: Verificar variables de entorno
+console.log('🔍 DEBUG Supabase Config:');
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Configurada' : '❌ NO configurada');
+console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? '✅ Configurada' : '❌ NO configurada');
 
-if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing Supabase URL or Key");
-}
+// Crear cliente de Supabase para servidor con manejo de cookies
+const createSupabaseServerClient = (req, res) => {
+  return createServerClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get: (name) => {
+          return req.cookies[name];
+        },
+        set: (name, value, options) => {
+          res.cookie(name, value, {
+            ...options,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict', // PATCH A: strict para máxima protección CSRF
+            path: '/',
+          });
+        },
+        remove: (name, options) => {
+          res.clearCookie(name, {
+            ...options,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict', // PATCH A: strict para máxima protección CSRF
+            path: '/',
+          });
+        },
+      },
+    }
+  );
+};
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-module.exports = supabase;
+module.exports = { createSupabaseServerClient };

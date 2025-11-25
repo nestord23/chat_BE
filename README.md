@@ -2,6 +2,8 @@
 
 Backend para una aplicación de chat en tiempo real construida con Node.js, Express, Socket.IO y Supabase.
 
+📖 **[Ver Documentación Completa de API para Frontend](./API_DOCUMENTATION.md)**
+
 ## 🚀 Características
 
 - **Autenticación de Usuarios**: Registro y Login con JWT y encriptación de contraseñas (bcryptjs).

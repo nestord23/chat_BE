@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -23,9 +24,13 @@
   "homepage": "https://github.com/nestord23/chat_BE#readme",
   "description": "",
   "dependencies": {
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.84.0",
     "bcryptjs": "^3.0.3",
+    "cookie": "^1.0.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "csrf-csrf": "^4.0.3",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-mongo-sanitize": "^2.2.0",
@@ -37,6 +42,9 @@
     "xss": "^1.0.15"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.1.4"
   }
 }

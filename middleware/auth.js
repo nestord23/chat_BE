@@ -1,25 +1,41 @@
-const jwt = require('jsonwebtoken');
+const { createSupabaseServerClient } = require('../config/supabase');
 
-const authMiddleware = (req, res, next) => {
+// Middleware para verificar autenticación con Supabase
+const authMiddleware = async (req, res, next) => {
   try {
-    // Obtener token del header
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const supabase = createSupabaseServerClient(req, res);
+    
+    // Obtener sesión actual desde las cookies
+    const { data: { session }, error } = await supabase.auth.getSession();
 
-    if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'No hay token, autorización denegada' 
+    if (error || !session) {
+      return res.status(401).json({
+        success: false,
+        message: 'No autenticado. Por favor inicia sesión.'
       });
     }
 
-    // Verificar token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    // Obtener datos del usuario
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no válido'
+      });
+    }
+
+    // Adjuntar usuario y sesión al request
+    req.user = user;
+    req.session = session;
+    req.supabase = supabase;
+
     next();
   } catch (error) {
-    res.status(401).json({ 
-      success: false, 
-      message: 'Token no válido' 
+    console.error('Error en authMiddleware:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al verificar autenticación'
     });
   }
 };
