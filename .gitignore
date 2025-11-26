@@ -41,3 +41,6 @@ coverage/
 # Archivos de proyecto frontend (si tienes dentro)
 *.local
 *.sourcemap
+
+logs/
+*.log

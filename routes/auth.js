@@ -5,6 +5,7 @@ const validator = require('validator'); // PATCH B: Sanitización
 const { createSupabaseServerClient } = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
 const { csrfProtection, generateToken } = require('../middleware/csrf'); // PATCH A: CSRF
+const logger = require('../config/logger');
 
 // PARCHE 1: Rate limiter específico para autenticación
 const authLimiter = rateLimit({
@@ -28,7 +29,7 @@ router.get('/csrf-token', (req, res) => {
       csrfToken 
     });
   } catch (error) {
-    console.error('Error generando token CSRF:', error);
+    logger.error('Error generando token CSRF:', error);
     res.status(500).json({
       success: false,
       message: 'Error al generar token CSRF'
@@ -90,7 +91,7 @@ router.post('/register', authLimiter, async (req, res) => {
     });
 
     if (error) {
-      console.error('Error en registro:', error);
+      logger.error('Error en registro:', error);
       return res.status(400).json({
         success: false,
         message: error.message || 'Error al registrar usuario'
@@ -109,7 +110,7 @@ router.post('/register', authLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en registro:', error);
+    logger.error('Error en registro:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
@@ -157,7 +158,7 @@ router.post('/login', authLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en login:', error);
+    logger.error('Error en login:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
@@ -187,7 +188,7 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en logout:', error);
+    logger.error('Error en logout:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
@@ -222,7 +223,7 @@ router.get('/session', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error verificando sesión:', error);
+    logger.error('Error verificando sesión:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
@@ -256,7 +257,7 @@ router.post('/refresh', csrfProtection, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error refrescando sesión:', error);
+    logger.error('Error refrescando sesión:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
