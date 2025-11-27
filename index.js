@@ -69,11 +69,10 @@ app.get('/', (req, res) => {
 
 // Chat grupal (namespace raíz)
 setupSocketHandlers(groupChatIO);
-logger.info('✅ Chat grupal configurado en namespace raíz');
 
 // Chat privado 1 a 1 (namespace /private)
 setupPrivateChatHandlers(privateChatIO);
-logger.info('✅ Chat privado 1 a 1 configurado en namespace /private');
+
 
 // ============================================
 // MANEJO DE ERRORES GLOBAL
@@ -103,16 +102,5 @@ app.use((err, req, res, next) => {
 // ============================================
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
-  logger.info(`🚀 Servidor corriendo en puerto ${PORT}`);
-  logger.info(`✅ Supabase Auth con cookies HTTPOnly`);
-  logger.info(`🔒 Seguridad: Helmet, CORS, Rate Limiting, CSRF activados`);
-  logger.info(`💬 Chat grupal: ws://localhost:${PORT}`);
-  logger.info(`👥 Chat privado: ws://localhost:${PORT}/private`);
-  
-  // PATCH D: Advertencia sobre cookies en desarrollo
-  if (process.env.NODE_ENV !== 'production') {
-    logger.warn('⚠️  ADVERTENCIA: Cookies sin flag "secure" en desarrollo');
-    logger.warn('   Para desarrollo seguro, usa HTTPS local con mkcert');
-    logger.warn('   Ver: https://github.com/FiloSottile/mkcert');
-  }
+logger.info(`🚀 Servidor corriendo en puerto ${PORT}`);
 });

@@ -2,10 +2,7 @@
 const { createServerClient } = require('@supabase/ssr');
 const logger = require('./logger');
 
-// DEBUG: Verificar variables de entorno
-logger.info('🔍 DEBUG Supabase Config:');
-logger.info('SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Configurada' : '❌ NO configurada');
-logger.info('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? '✅ Configurada' : '❌ NO configurada');
+
 
 // Crear cliente de Supabase para servidor con manejo de cookies
 const createSupabaseServerClient = (req, res) => {

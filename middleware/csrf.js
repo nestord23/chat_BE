@@ -35,8 +35,6 @@ try {
   generateCsrfToken = csrfResult.generateCsrfToken;
   doubleCsrfProtection = csrfResult.doubleCsrfProtection;
   invalidCsrfTokenError = csrfResult.invalidCsrfTokenError;
-  
-  console.log('✅ CSRF configurado correctamente');
 } catch (error) {
   console.error('❌ Error al configurar CSRF:', error.message);
   throw error;

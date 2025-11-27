@@ -29,6 +29,5 @@ const supabaseAdmin = createClient(
   }
 );
 
-logger.info('✅ Supabase Admin Client inicializado');
 
 module.exports = { supabaseAdmin };

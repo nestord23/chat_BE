@@ -37,8 +37,6 @@ function validateEnv() {
     logger.error('\n💡 Asegúrate de tener un archivo .env con todas las variables requeridas.\n');
     process.exit(1);
   }
-
-  logger.info('✅ Variables de entorno validadas correctamente');
 }
 
 module.exports = { validateEnv };
