@@ -11,9 +11,9 @@ const logger = require('../config/logger');
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 5, // 5 intentos por IP
-  message: { 
-    success: false, 
-    message: 'Demasiados intentos, intenta de nuevo en 15 minutos' 
+  message: {
+    success: false,
+    message: 'Demasiados intentos, intenta de nuevo en 15 minutos',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,15 +24,15 @@ const authLimiter = rateLimit({
 router.get('/csrf-token', (req, res) => {
   try {
     const csrfToken = generateToken(req, res);
-    res.json({ 
+    res.json({
       success: true,
-      csrfToken 
+      csrfToken,
     });
   } catch (error) {
     logger.error('Error generando token CSRF:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al generar token CSRF'
+      message: 'Error al generar token CSRF',
     });
   }
 });
@@ -46,7 +46,7 @@ router.post('/register', authLimiter, async (req, res) => {
     if (!email || !password || !username) {
       return res.status(400).json({
         success: false,
-        message: 'Por favor proporciona todos los campos'
+        message: 'Por favor proporciona todos los campos',
       });
     }
 
@@ -54,7 +54,7 @@ router.post('/register', authLimiter, async (req, res) => {
     if (!validator.isEmail(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Formato de email inválido'
+        message: 'Formato de email inválido',
       });
     }
 
@@ -62,7 +62,8 @@ router.post('/register', authLimiter, async (req, res) => {
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       return res.status(400).json({
         success: false,
-        message: 'El username debe tener entre 3-20 caracteres (solo letras, números y guiones bajos)'
+        message:
+          'El username debe tener entre 3-20 caracteres (solo letras, números y guiones bajos)',
       });
     }
 
@@ -70,7 +71,7 @@ router.post('/register', authLimiter, async (req, res) => {
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'La contraseña debe tener al menos 8 caracteres'
+        message: 'La contraseña debe tener al menos 8 caracteres',
       });
     }
 
@@ -85,18 +86,24 @@ router.post('/register', authLimiter, async (req, res) => {
       password,
       options: {
         data: {
-          username: sanitizedUsername // PATCH B: Usar username sanitizado
-        }
-      }
+          username: sanitizedUsername, // PATCH B: Usar username sanitizado
+        },
+      },
     });
 
     if (error) {
       logger.error('Error en registro:', error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Error al registrar usuario'
+        message: error.message || 'Error al registrar usuario',
       });
     }
+    console.log('🥳nuevo usuario registrado:', {
+      userId: data.user.id,
+      email: data.user.email,
+      username: data.user.user_metadata?.username,
+      timestamp: new Date().toISOString(),
+    });
 
     // Supabase automáticamente establece las cookies de sesión
     res.status(201).json({
@@ -105,16 +112,15 @@ router.post('/register', authLimiter, async (req, res) => {
       user: {
         id: data.user.id,
         email: data.user.email,
-        username: data.user.user_metadata?.username
-      }
+        username: data.user.user_metadata?.username,
+      },
     });
-
   } catch (error) {
     logger.error('Error en registro:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
     });
   }
 });
@@ -127,7 +133,7 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Por favor proporciona email y password'
+        message: 'Por favor proporciona email y password',
       });
     }
 
@@ -136,16 +142,23 @@ router.post('/login', authLimiter, async (req, res) => {
     // Iniciar sesión con Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
 
     if (error) {
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales inválidas',
       });
     }
 
+    // para saber
+    console.log('✅ Usuario ha iniciado sesión:', {
+      userId: data.user.id,
+      email: data.user.email,
+      username: data.user.user_metadata?.username,
+      timestamp: new Date().toISOString(),
+    });
     // Supabase automáticamente establece las cookies de sesión
     res.json({
       success: true,
@@ -153,16 +166,15 @@ router.post('/login', authLimiter, async (req, res) => {
       user: {
         id: data.user.id,
         email: data.user.email,
-        username: data.user.user_metadata?.username
-      }
+        username: data.user.user_metadata?.username,
+      },
     });
-
   } catch (error) {
     logger.error('Error en login:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
     });
   }
 });
@@ -177,22 +189,21 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
     if (error) {
       return res.status(500).json({
         success: false,
-        message: 'Error al cerrar sesión'
+        message: 'Error al cerrar sesión',
       });
     }
 
     // Supabase automáticamente limpia las cookies
     res.json({
       success: true,
-      message: 'Sesión cerrada exitosamente'
+      message: 'Sesión cerrada exitosamente',
     });
-
   } catch (error) {
     logger.error('Error en logout:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
     });
   }
 });
@@ -202,32 +213,36 @@ router.get('/session', async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
 
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
 
     if (error || !session) {
       return res.status(401).json({
         success: false,
-        message: 'No hay sesión activa'
+        message: 'No hay sesión activa',
       });
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     res.json({
       success: true,
       user: {
         id: user.id,
         email: user.email,
-        username: user.user_metadata?.username
-      }
+        username: user.user_metadata?.username,
+      },
     });
-
   } catch (error) {
     logger.error('Error verificando sesión:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
     });
   }
 });
@@ -242,7 +257,7 @@ router.post('/refresh', csrfProtection, async (req, res) => {
     if (error) {
       return res.status(401).json({
         success: false,
-        message: 'No se pudo refrescar la sesión'
+        message: 'No se pudo refrescar la sesión',
       });
     }
 
@@ -252,16 +267,15 @@ router.post('/refresh', csrfProtection, async (req, res) => {
       user: {
         id: data.user.id,
         email: data.user.email,
-        username: data.user.user_metadata?.username
-      }
+        username: data.user.user_metadata?.username,
+      },
     });
-
   } catch (error) {
     logger.error('Error refrescando sesión:', error);
     // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
     });
   }
 });
