@@ -1,24 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const rateLimit = require('express-rate-limit'); // PARCHE 1: Rate limiting
 const validator = require('validator'); // PATCH B: Sanitización
 const { createSupabaseServerClient } = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
 const { csrfProtection, generateToken } = require('../middleware/csrf'); // PATCH A: CSRF
+const { authLimiter } = require('../middleware/rateLimiters'); // Rate limiting centralizado
 const logger = require('../config/logger');
-
-// PARCHE 1: Rate limiter específico para autenticación
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 intentos por IP
-  message: {
-    success: false,
-    message: 'Demasiados intentos, intenta de nuevo en 15 minutos',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  statusCode: 429,
-});
 
 // PATCH A: Endpoint para obtener token CSRF
 router.get('/csrf-token', (req, res) => {

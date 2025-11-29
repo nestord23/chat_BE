@@ -30,8 +30,8 @@ const { allowedOrigins } = configureExpress(app);
 const groupChatIO = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 // Namespace para chat privado 1 a 1 (nuevo)
@@ -43,23 +43,26 @@ const privateChatIO = groupChatIO.of('/private');
 const authRoutes = require('./routes/auth');
 const messagesRoutes = require('./routes/messages');
 const privateChatRoutes = require('./routes/privateChat'); // Nuevo
+const usersRoutes = require('./routes/users'); // Búsqueda de usuarios
 
 // Montar rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messagesRoutes); // Chat grupal
 app.use('/api/chat', privateChatRoutes); // Chat privado
+app.use('/api/users', usersRoutes); // Búsqueda de usuarios
 
 // Ruta de prueba
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Servidor de Chat API funcionando con Supabase Auth',
     version: '3.0.0',
     status: 'online',
     features: {
       auth: 'Supabase Auth con cookies HTTPOnly + CSRF Protection',
       groupChat: 'WebSocket en namespace raíz',
-      privateChat: 'WebSocket en namespace /private'
-    }
+      privateChat: 'WebSocket en namespace /private',
+      userSearch: 'Búsqueda de usuarios con protección anti-abuso',
+    },
   });
 });
 
@@ -73,7 +76,6 @@ setupSocketHandlers(groupChatIO);
 // Chat privado 1 a 1 (namespace /private)
 setupPrivateChatHandlers(privateChatIO);
 
-
 // ============================================
 // MANEJO DE ERRORES GLOBAL
 // ============================================
@@ -85,15 +87,13 @@ app.use((err, req, res, next) => {
     url: req.url,
     method: req.method,
     ip: req.ip,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   // PATCH F: NUNCA exponer stack trace al cliente
   res.status(err.status || 500).json({
     success: false,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Error en el servidor' 
-      : err.message // Solo en desarrollo
+    message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : err.message, // Solo en desarrollo
   });
 });
 
@@ -102,5 +102,5 @@ app.use((err, req, res, next) => {
 // ============================================
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
-logger.info(`🚀 Servidor corriendo en puerto ${PORT}`);
+  logger.info(`🚀 Servidor corriendo en puerto ${PORT}`);
 });
