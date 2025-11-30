@@ -1,13 +1,36 @@
 const express = require('express');
 const router = express.Router();
-const validator = require('validator'); // PATCH B: Sanitización
+const validator = require('validator');
 const { createSupabaseServerClient } = require('../config/supabase');
 const authMiddleware = require('../middleware/auth');
-const { csrfProtection, generateToken } = require('../middleware/csrf'); // PATCH A: CSRF
-const { authLimiter } = require('../middleware/rateLimiters'); // Rate limiting centralizado
+const { csrfProtection, generateToken } = require('../middleware/csrf');
+const { authLimiter } = require('../middleware/rateLimiters');
 const logger = require('../config/logger');
 
-// PATCH A: Endpoint para obtener token CSRF
+/**
+ * @swagger
+ * /api/auth/csrf-token:
+ *   get:
+ *     summary: Obtener token CSRF
+ *     tags: [Autenticación]
+ *     description: Genera y devuelve un token CSRF para proteger endpoints POST/PUT/DELETE
+ *     responses:
+ *       200:
+ *         description: Token CSRF generado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 csrfToken:
+ *                   type: string
+ *                   example: "abc123def456"
+ *       500:
+ *         description: Error al generar token
+ */
 router.get('/csrf-token', (req, res) => {
   try {
     const csrfToken = generateToken(req, res);
@@ -24,12 +47,79 @@ router.get('/csrf-token', (req, res) => {
   }
 });
 
-// REGISTRO con Supabase Auth
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Registrar nuevo usuario
+ *     tags: [Autenticación]
+ *     description: Crea una nueva cuenta de usuario con Supabase Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - username
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: usuario@example.com
+ *                 description: Email del usuario
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *                 example: Password123!
+ *                 description: Contraseña (mínimo 8 caracteres)
+ *               username:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 20
+ *                 pattern: '^[a-zA-Z0-9_]{3,20}$'
+ *                 example: usuario123
+ *                 description: Nombre de usuario (3-20 caracteres, alfanumérico)
+ *     responses:
+ *       201:
+ *         description: Usuario registrado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Usuario registrado exitosamente"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     email:
+ *                       type: string
+ *                       example: "usuario@example.com"
+ *                     username:
+ *                       type: string
+ *                       example: "usuario123"
+ *       400:
+ *         description: Datos inválidos o usuario ya existe
+ *       429:
+ *         description: Demasiados intentos (rate limit)
+ *       500:
+ *         description: Error del servidor
+ */
 router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
-    // Validaciones básicas
     if (!email || !password || !username) {
       return res.status(400).json({
         success: false,
@@ -37,7 +127,6 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
-    // PATCH H: Validar formato de email
     if (!validator.isEmail(email)) {
       return res.status(400).json({
         success: false,
@@ -45,7 +134,6 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
-    // Validar username (3-20 caracteres, alfanumérico)
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       return res.status(400).json({
         success: false,
@@ -54,7 +142,6 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
-    // Validar contraseña (mínimo 8 caracteres)
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
@@ -62,18 +149,15 @@ router.post('/register', authLimiter, async (req, res) => {
       });
     }
 
-    // PATCH B: Sanitizar username para prevenir inyección
     const sanitizedUsername = validator.escape(username.trim());
-
     const supabase = createSupabaseServerClient(req, res);
 
-    // Registrar usuario con Supabase Auth
     const { data, error } = await supabase.auth.signUp({
-      email: email.toLowerCase().trim(), // PATCH H: Limpiar email (no normalizar)
+      email: email.toLowerCase().trim(),
       password,
       options: {
         data: {
-          username: sanitizedUsername, // PATCH B: Usar username sanitizado
+          username: sanitizedUsername,
         },
       },
     });
@@ -85,6 +169,7 @@ router.post('/register', authLimiter, async (req, res) => {
         message: error.message || 'Error al registrar usuario',
       });
     }
+
     console.log('🥳nuevo usuario registrado:', {
       userId: data.user.id,
       email: data.user.email,
@@ -92,7 +177,6 @@ router.post('/register', authLimiter, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
 
-    // Supabase automáticamente establece las cookies de sesión
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
@@ -104,7 +188,6 @@ router.post('/register', authLimiter, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error en registro:', error);
-    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
@@ -112,7 +195,61 @@ router.post('/register', authLimiter, async (req, res) => {
   }
 });
 
-// LOGIN con Supabase Auth
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Iniciar sesión
+ *     tags: [Autenticación]
+ *     description: Autentica un usuario con email y contraseña usando Supabase Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: usuario@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: Password123!
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Login exitoso"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *       401:
+ *         description: Credenciales inválidas
+ *       429:
+ *         description: Demasiados intentos (rate limit)
+ *       500:
+ *         description: Error del servidor
+ */
 router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -126,7 +263,6 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const supabase = createSupabaseServerClient(req, res);
 
-    // Iniciar sesión con Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -139,14 +275,13 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    // para saber
     console.log('✅ Usuario ha iniciado sesión:', {
       userId: data.user.id,
       email: data.user.email,
       username: data.user.user_metadata?.username,
       timestamp: new Date().toISOString(),
     });
-    // Supabase automáticamente establece las cookies de sesión
+
     res.json({
       success: true,
       message: 'Login exitoso',
@@ -158,7 +293,6 @@ router.post('/login', authLimiter, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error en login:', error);
-    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
@@ -166,7 +300,43 @@ router.post('/login', authLimiter, async (req, res) => {
   }
 });
 
-// LOGOUT - PARCHE 2: CSRF habilitado en logout para prevenir CSRF attacks
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Cerrar sesión
+ *     tags: [Autenticación]
+ *     description: Cierra la sesión actual del usuario (requiere CSRF token y autenticación)
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-csrf-token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token CSRF obtenido de /api/auth/csrf-token
+ *     responses:
+ *       200:
+ *         description: Sesión cerrada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sesión cerrada exitosamente"
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Token CSRF inválido
+ *       500:
+ *         description: Error del servidor
+ */
 router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
@@ -180,14 +350,12 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
       });
     }
 
-    // Supabase automáticamente limpia las cookies
     res.json({
       success: true,
       message: 'Sesión cerrada exitosamente',
     });
   } catch (error) {
     logger.error('Error en logout:', error);
-    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
@@ -195,7 +363,43 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
   }
 });
 
-// VERIFICAR SESIÓN
+/**
+ * @swagger
+ * /api/auth/session:
+ *   get:
+ *     summary: Verificar sesión actual
+ *     tags: [Autenticación]
+ *     description: Obtiene información de la sesión actual del usuario
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Sesión activa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     email:
+ *                       type: string
+ *                       example: "usuario@example.com"
+ *                     username:
+ *                       type: string
+ *                       example: "usuario123"
+ *       401:
+ *         description: No hay sesión activa
+ *       500:
+ *         description: Error del servidor
+ */
 router.get('/session', async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
@@ -226,7 +430,6 @@ router.get('/session', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error verificando sesión:', error);
-    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
@@ -234,7 +437,52 @@ router.get('/session', async (req, res) => {
   }
 });
 
-// REFRESCAR SESIÓN - PATCH A: Protegido con CSRF
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refrescar sesión
+ *     tags: [Autenticación]
+ *     description: Renueva el token de sesión actual (requiere CSRF token)
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-csrf-token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token CSRF
+ *     responses:
+ *       200:
+ *         description: Sesión refrescada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Sesión refrescada"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *       401:
+ *         description: No se pudo refrescar la sesión
+ *       403:
+ *         description: Token CSRF inválido
+ *       500:
+ *         description: Error del servidor
+ */
 router.post('/refresh', csrfProtection, async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
@@ -259,7 +507,6 @@ router.post('/refresh', csrfProtection, async (req, res) => {
     });
   } catch (error) {
     logger.error('Error refrescando sesión:', error);
-    // PATCH F: Mensaje genérico en producción
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
