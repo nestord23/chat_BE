@@ -32,7 +32,7 @@ function configureExpress(app) {
       }
     },
     credentials: true, // IMPORTANTE: Permitir cookies
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'], // PATCH A: Header CSRF
   };
 
