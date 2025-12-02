@@ -7,7 +7,7 @@ const requiredVars = {
   SUPABASE_URL: {},
   SUPABASE_ANON_KEY: {},
   SUPABASE_SERVICE_ROLE_KEY: {},
-  FRONTEND_URL: {}
+  FRONTEND_URL: {},
 };
 
 function validateEnv() {
@@ -33,7 +33,7 @@ function validateEnv() {
   // Si hay errores, mostrarlos y salir
   if (errors.length > 0) {
     logger.error('\n🚨 ERRORES DE CONFIGURACIÓN:\n');
-    errors.forEach(error => logger.error(error));
+    errors.forEach((error) => logger.error(error));
     logger.error('\n💡 Asegúrate de tener un archivo .env con todas las variables requeridas.\n');
     process.exit(1);
   }

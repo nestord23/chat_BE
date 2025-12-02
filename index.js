@@ -62,7 +62,7 @@ app.get('/', (req, res) => {
     message: 'Servidor de Chat API funcionando con Supabase Auth',
     version: '3.0.0',
     status: 'online',
-    documentation: 'http://localhost:3001/api-docs', // documentacion
+    documentation: 'http://localhost:3000/api-docs', // documentacion
     features: {
       auth: 'Supabase Auth con cookies HTTPOnly + CSRF Protection',
       groupChat: 'WebSocket en namespace raíz',
@@ -100,7 +100,7 @@ app.use((err, req, res, next) => {
 // ============================================
 // INICIAR SERVIDOR
 // ============================================
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   logger.info(`🚀 Servidor corriendo en puerto ${PORT}`);
   logger.info(`📚 Documentación disponible en http://localhost:${PORT}/api-docs`);

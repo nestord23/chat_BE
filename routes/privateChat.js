@@ -3,10 +3,51 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const logger = require('../config/logger');
 
-// ============================================
-// GET /api/chat/conversations
-// Obtener lista de conversaciones del usuario
-// ============================================
+/**
+ * @swagger
+ * /api/chat/conversations:
+ *   get:
+ *     summary: Obtener lista de conversaciones del usuario
+ *     tags: [Chat Privado]
+ *     description: Retorna todas las conversaciones activas del usuario autenticado
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de conversaciones obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 conversations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       user_id:
+ *                         type: string
+ *                         example: "123e4567-e89b-12d3-a456-426614174000"
+ *                       username:
+ *                         type: string
+ *                         example: "usuario123"
+ *                       avatar_url:
+ *                         type: string
+ *                         example: "https://example.com/avatar.jpg"
+ *                       last_message:
+ *                         type: string
+ *                         example: "Hola, ¿cómo estás?"
+ *                       unread_count:
+ *                         type: integer
+ *                         example: 3
+ *       401:
+ *         description: No autenticado
+ *       500:
+ *         description: Error del servidor
+ */
 router.get('/conversations', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -30,10 +71,67 @@ router.get('/conversations', authMiddleware, async (req, res) => {
   }
 });
 
-// ============================================
-// POST /api/chat/conversations
-// Iniciar una nueva conversación
-// ============================================
+/**
+ * @swagger
+ * /api/chat/conversations:
+ *   post:
+ *     summary: Iniciar una nueva conversación
+ *     tags: [Chat Privado]
+ *     description: Crea o recupera una conversación con otro usuario
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *                 description: ID del usuario con quien iniciar la conversación
+ *     responses:
+ *       200:
+ *         description: Conversación iniciada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 conversation:
+ *                   type: object
+ *                   properties:
+ *                     user_id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     username:
+ *                       type: string
+ *                       example: "usuario123"
+ *                     avatar_url:
+ *                       type: string
+ *                       example: "https://example.com/avatar.jpg"
+ *                     last_message:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     unread_count:
+ *                       type: integer
+ *                       example: 0
+ *       400:
+ *         description: ID de usuario no proporcionado
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
+ */
 router.post('/conversations', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.body;
@@ -79,10 +177,66 @@ router.post('/conversations', authMiddleware, async (req, res) => {
   }
 });
 
-// ============================================
-// GET /api/chat/messages/:userId
-// Obtener mensajes de una conversación específica
-// ============================================
+/**
+ * @swagger
+ * /api/chat/messages/{userId}:
+ *   get:
+ *     summary: Obtener mensajes de una conversación específica
+ *     tags: [Chat Privado]
+ *     description: Retorna los últimos 100 mensajes entre el usuario autenticado y otro usuario
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del usuario con quien se tiene la conversación
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Mensajes obtenidos exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 messages:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "123e4567-e89b-12d3-a456-426614174000"
+ *                       sender_id:
+ *                         type: string
+ *                         example: "123e4567-e89b-12d3-a456-426614174000"
+ *                       receiver_id:
+ *                         type: string
+ *                         example: "987e6543-e21b-12d3-a456-426614174000"
+ *                       contenido:
+ *                         type: string
+ *                         example: "Hola, ¿cómo estás?"
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                         example: "2024-01-01T12:00:00Z"
+ *                       estado:
+ *                         type: string
+ *                         enum: [enviado, entregado, visto]
+ *                         example: "visto"
+ *       400:
+ *         description: ID de usuario no proporcionado
+ *       401:
+ *         description: No autenticado
+ *       500:
+ *         description: Error del servidor
+ */
 router.get('/messages/:userId', authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;
@@ -122,10 +276,34 @@ router.get('/messages/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-// ============================================
-// GET /api/chat/unread-count
-// Obtener contador de mensajes no leídos
-// ============================================
+/**
+ * @swagger
+ * /api/chat/unread-count:
+ *   get:
+ *     summary: Obtener contador de mensajes no leídos
+ *     tags: [Chat Privado]
+ *     description: Retorna el número total de mensajes no leídos del usuario autenticado
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Contador obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 unreadCount:
+ *                   type: integer
+ *                   example: 5
+ *       401:
+ *         description: No autenticado
+ *       500:
+ *         description: Error del servidor
+ */
 router.get('/unread-count', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -152,10 +330,44 @@ router.get('/unread-count', authMiddleware, async (req, res) => {
   }
 });
 
-// ============================================
-// PUT /api/chat/messages/:userId/seen
-// Marcar todos los mensajes de una conversación como vistos
-// ============================================
+/**
+ * @swagger
+ * /api/chat/messages/{userId}/seen:
+ *   put:
+ *     summary: Marcar mensajes como vistos
+ *     tags: [Chat Privado]
+ *     description: Marca todos los mensajes de una conversación como vistos
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID del usuario de la conversación
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Mensajes marcados como vistos exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Mensajes marcados como vistos"
+ *       400:
+ *         description: ID de usuario no proporcionado
+ *       401:
+ *         description: No autenticado
+ *       500:
+ *         description: Error del servidor
+ */
 router.put('/messages/:userId/seen', authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;
@@ -192,10 +404,55 @@ router.put('/messages/:userId/seen', authMiddleware, async (req, res) => {
   }
 });
 
-// ============================================
-// GET /api/chat/users
-// Buscar usuarios para iniciar conversación
-// ============================================
+/**
+ * @swagger
+ * /api/chat/users:
+ *   get:
+ *     summary: Buscar usuarios para iniciar conversación
+ *     tags: [Chat Privado]
+ *     description: Busca usuarios disponibles para iniciar un chat (excluye al usuario actual)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Término de búsqueda para filtrar por username
+ *         example: "juan"
+ *     responses:
+ *       200:
+ *         description: Usuarios encontrados exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "123e4567-e89b-12d3-a456-426614174000"
+ *                       username:
+ *                         type: string
+ *                         example: "usuario123"
+ *                       avatar_url:
+ *                         type: string
+ *                         example: "https://example.com/avatar.jpg"
+ *                       bio:
+ *                         type: string
+ *                         example: "Desarrollador web"
+ *       401:
+ *         description: No autenticado
+ *       500:
+ *         description: Error del servidor
+ */
 router.get('/users', authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;

@@ -12,16 +12,99 @@ const { cacheMiddleware } = require('../middleware/searchCache');
 const logger = require('../config/logger');
 
 /**
- * GET /api/users/search
- * Buscar usuarios para iniciar chat
+ * @swagger
+ * /api/users/search:
+ *   get:
+ *     summary: Buscar usuarios para iniciar chat
+ *     tags: [Usuarios]
+ *     description: |
+ *       Busca usuarios por username o email con paginación.
  *
- * Protecciones implementadas:
- * 1. authMiddleware - Requiere autenticación
- * 2. searchLimiter - Máximo 20 búsquedas por minuto
- * 3. validateSearchQuery - Valida y sanitiza el input
- * 4. validatePagination - Valida parámetros de paginación
- * 5. preventDuplicateSearches - Previene búsquedas idénticas muy rápidas
- * 6. cacheMiddleware - Cachea resultados para reducir carga en DB
+ *       **Protecciones implementadas:**
+ *       - Requiere autenticación
+ *       - Rate limit: 20 búsquedas por minuto
+ *       - Validación y sanitización de input
+ *       - Validación de parámetros de paginación
+ *       - Prevención de búsquedas duplicadas
+ *       - Caché de resultados
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Término de búsqueda (username o email)
+ *         example: "juan"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número de página
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 50
+ *         description: Resultados por página (máximo 50)
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: Búsqueda exitosa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: "123e4567-e89b-12d3-a456-426614174000"
+ *                       username:
+ *                         type: string
+ *                         example: "usuario123"
+ *                       email:
+ *                         type: string
+ *                         example: "usuario@example.com"
+ *                       avatar_url:
+ *                         type: string
+ *                         example: "https://example.com/avatar.jpg"
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     total:
+ *                       type: integer
+ *                       example: 42
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 5
+ *                 cached:
+ *                   type: boolean
+ *                   example: false
+ *       400:
+ *         description: Parámetros de búsqueda inválidos
+ *       401:
+ *         description: No autenticado
+ *       429:
+ *         description: Demasiadas búsquedas (rate limit)
+ *       500:
+ *         description: Error del servidor
  */
 router.get(
   '/search',
@@ -83,8 +166,57 @@ router.get(
 );
 
 /**
- * GET /api/users/:userId
- * Obtener información de un usuario específico
+ * @swagger
+ * /api/users/{userId}:
+ *   get:
+ *     summary: Obtener información de un usuario específico
+ *     tags: [Usuarios]
+ *     description: Retorna los datos públicos de un usuario por su ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del usuario (UUID)
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     responses:
+ *       200:
+ *         description: Usuario encontrado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     username:
+ *                       type: string
+ *                       example: "usuario123"
+ *                     email:
+ *                       type: string
+ *                       example: "usuario@example.com"
+ *                     avatar_url:
+ *                       type: string
+ *                       example: "https://example.com/avatar.jpg"
+ *       400:
+ *         description: ID de usuario inválido
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
  */
 router.get('/:userId', authMiddleware, async (req, res) => {
   try {
