@@ -146,7 +146,7 @@ router.post('/conversations', authMiddleware, async (req, res) => {
 
     // Verificar si el usuario existe
     const { data: user, error } = await supabase
-      .from('perfiles')
+      .from('profiles')
       .select('id, username, avatar_url')
       .eq('id', userId)
       .single();
@@ -371,7 +371,7 @@ router.post('/messages', authMiddleware, async (req, res) => {
 
     // Verificar que el destinatario existe
     const { data: receiver, error: receiverError } = await supabase
-      .from('perfiles')
+      .from('profiles')
       .select('id')
       .eq('id', to)
       .single();
@@ -601,7 +601,7 @@ router.get('/users', authMiddleware, async (req, res) => {
     const supabase = req.supabase;
 
     let query = supabase
-      .from('perfiles')
+      .from('profiles')
       .select('id, username, avatar_url, bio')
       .neq('id', currentUserId) // Excluir al usuario actual
       .limit(20);
