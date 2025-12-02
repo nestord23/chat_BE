@@ -278,6 +278,147 @@ router.get('/messages/:userId', authMiddleware, async (req, res) => {
 
 /**
  * @swagger
+ * /api/chat/messages:
+ *   post:
+ *     summary: Enviar un mensaje privado (HTTP fallback)
+ *     tags: [Chat Privado]
+ *     description: Envía un mensaje privado a otro usuario via HTTP (usado cuando WebSocket no está disponible)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - content
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *                 description: ID del usuario destinatario
+ *               content:
+ *                 type: string
+ *                 example: "Hola, ¿cómo estás?"
+ *                 description: Contenido del mensaje (1-5000 caracteres)
+ *     responses:
+ *       200:
+ *         description: Mensaje enviado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     sender_id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     receiver_id:
+ *                       type: string
+ *                       example: "987e6543-e21b-12d3-a456-426614174000"
+ *                     contenido:
+ *                       type: string
+ *                       example: "Hola, ¿cómo estás?"
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-01T12:00:00Z"
+ *                     estado:
+ *                       type: string
+ *                       enum: [enviado, entregado, visto]
+ *                       example: "enviado"
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Usuario destinatario no encontrado
+ *       500:
+ *         description: Error del servidor
+ */
+router.post('/messages', authMiddleware, async (req, res) => {
+  try {
+    const senderId = req.user.id;
+    const { to, content } = req.body;
+    const supabase = req.supabase;
+
+    // Validar campos requeridos
+    if (!to || !content) {
+      return res.status(400).json({
+        success: false,
+        message: 'Destinatario y contenido son requeridos',
+      });
+    }
+
+    // Validar contenido
+    const trimmedContent = content.trim();
+    if (trimmedContent.length === 0 || trimmedContent.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        message: 'El mensaje debe tener entre 1 y 5000 caracteres',
+      });
+    }
+
+    // Verificar que el destinatario existe
+    const { data: receiver, error: receiverError } = await supabase
+      .from('perfiles')
+      .select('id')
+      .eq('id', to)
+      .single();
+
+    if (receiverError || !receiver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario destinatario no encontrado',
+      });
+    }
+
+    // Insertar mensaje en la base de datos
+    const { data: newMessage, error: insertError } = await supabase
+      .from('mensajes')
+      .insert([
+        {
+          sender_id: senderId,
+          receiver_id: to,
+          contenido: trimmedContent,
+          estado: 'enviado',
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertError) {
+      logger.error('Error al insertar mensaje:', insertError);
+      throw insertError;
+    }
+
+    logger.info(`📩 Mensaje HTTP enviado: ${senderId} → ${to}`);
+
+    res.json({
+      success: true,
+      message: newMessage,
+    });
+  } catch (error) {
+    logger.error('Error al enviar mensaje via HTTP:', error);
+    res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/chat/unread-count:
  *   get:
  *     summary: Obtener contador de mensajes no leídos
