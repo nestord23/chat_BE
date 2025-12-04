@@ -6,7 +6,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:websocket": "node tests/quick-test.js",
+    "test:ws-quick": "node tests/quick-test.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -46,6 +48,7 @@
     "@types/jest": "^30.0.0",
     "jest": "^30.2.0",
     "nodemon": "^3.1.11",
+    "socket.io-client": "^4.8.1",
     "supertest": "^7.1.4"
   }
 }
