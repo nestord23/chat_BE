@@ -1,11 +1,11 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const validator = require('validator');
-const { createSupabaseServerClient } = require('../config/supabase');
-const authMiddleware = require('../middleware/auth');
-const { csrfProtection, generateToken } = require('../middleware/csrf');
-const { authLimiter } = require('../middleware/rateLimiters');
-const logger = require('../config/logger');
+const validator = require("validator");
+const { createSupabaseServerClient } = require("../config/supabase");
+const authMiddleware = require("../middleware/auth");
+const { csrfProtection, generateToken } = require("../middleware/csrf");
+const { authLimiter } = require("../middleware/rateLimiters");
+const logger = require("../config/logger");
 
 /**
  * @swagger
@@ -31,7 +31,7 @@ const logger = require('../config/logger');
  *       500:
  *         description: Error al generar token
  */
-router.get('/csrf-token', (req, res) => {
+router.get("/csrf-token", (req, res) => {
   try {
     const csrfToken = generateToken(req, res);
     res.json({
@@ -39,10 +39,10 @@ router.get('/csrf-token', (req, res) => {
       csrfToken,
     });
   } catch (error) {
-    logger.error('Error generando token CSRF:', error);
+    logger.error("Error generando token CSRF:", error);
     res.status(500).json({
       success: false,
-      message: 'Error al generar token CSRF',
+      message: "Error al generar token CSRF",
     });
   }
 });
@@ -53,7 +53,7 @@ router.get('/csrf-token', (req, res) => {
  *   post:
  *     summary: Registrar nuevo usuario
  *     tags: [Autenticación]
- *     description: Crea una nueva cuenta de usuario con Supabase Auth
+ *     description: Crea una nueva cuenta de usuario con Supabase Auth y devuelve tokens de sesión
  *     requestBody:
  *       required: true
  *       content:
@@ -109,6 +109,17 @@ router.get('/csrf-token', (req, res) => {
  *                     username:
  *                       type: string
  *                       example: "usuario123"
+ *                 session:
+ *                   type: object
+ *                   properties:
+ *                     access_token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       description: Token JWT de acceso para autenticación
+ *                     refresh_token:
+ *                       type: string
+ *                       example: "v1.MR5twgY-z..."
+ *                       description: Token para renovar la sesión
  *       400:
  *         description: Datos inválidos o usuario ya existe
  *       429:
@@ -116,21 +127,21 @@ router.get('/csrf-token', (req, res) => {
  *       500:
  *         description: Error del servidor
  */
-router.post('/register', authLimiter, async (req, res) => {
+router.post("/register", authLimiter, async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
     if (!email || !password || !username) {
       return res.status(400).json({
         success: false,
-        message: 'Por favor proporciona todos los campos',
+        message: "Por favor proporciona todos los campos",
       });
     }
 
     if (!validator.isEmail(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Formato de email inválido',
+        message: "Formato de email inválido",
       });
     }
 
@@ -138,14 +149,14 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          'El username debe tener entre 3-20 caracteres (solo letras, números y guiones bajos)',
+          "El username debe tener entre 3-20 caracteres (solo letras, números y guiones bajos)",
       });
     }
 
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'La contraseña debe tener al menos 8 caracteres',
+        message: "La contraseña debe tener al menos 8 caracteres",
       });
     }
 
@@ -163,34 +174,49 @@ router.post('/register', authLimiter, async (req, res) => {
     });
 
     if (error) {
-      logger.error('Error en registro:', error);
+      logger.error("Error en registro:", error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Error al registrar usuario',
+        message: error.message || "Error al registrar usuario",
       });
     }
 
-    console.log('🥳nuevo usuario registrado:', {
+    console.log("🥳 Nuevo usuario registrado:", {
       userId: data.user.id,
       email: data.user.email,
       username: data.user.user_metadata?.username,
       timestamp: new Date().toISOString(),
     });
 
-    res.status(201).json({
+    // ✅ ACTUALIZADO: Construir respuesta con sesión si existe
+    const response = {
       success: true,
-      message: 'Usuario registrado exitosamente',
+      message: "Usuario registrado exitosamente",
       user: {
         id: data.user.id,
         email: data.user.email,
         username: data.user.user_metadata?.username,
       },
-    });
+    };
+
+    // ✅ NUEVO: Agregar tokens de sesión si están disponibles
+    if (data.session) {
+      response.session = {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      };
+      console.log("🔑 Tokens de sesión incluidos en respuesta de registro");
+    }
+
+    res.status(201).json(response);
   } catch (error) {
-    logger.error('Error en registro:', error);
+    logger.error("Error en registro:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -201,7 +227,7 @@ router.post('/register', authLimiter, async (req, res) => {
  *   post:
  *     summary: Iniciar sesión
  *     tags: [Autenticación]
- *     description: Autentica un usuario con email y contraseña usando Supabase Auth
+ *     description: Autentica un usuario con email y contraseña usando Supabase Auth y devuelve tokens de sesión
  *     requestBody:
  *       required: true
  *       content:
@@ -239,10 +265,24 @@ router.post('/register', authLimiter, async (req, res) => {
  *                   properties:
  *                     id:
  *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
  *                     email:
  *                       type: string
+ *                       example: "usuario@example.com"
  *                     username:
  *                       type: string
+ *                       example: "usuario123"
+ *                 session:
+ *                   type: object
+ *                   properties:
+ *                     access_token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       description: Token JWT de acceso para autenticación (requerido para WebSocket)
+ *                     refresh_token:
+ *                       type: string
+ *                       example: "v1.MR5twgY-z..."
+ *                       description: Token para renovar la sesión cuando expire
  *       401:
  *         description: Credenciales inválidas
  *       429:
@@ -250,14 +290,14 @@ router.post('/register', authLimiter, async (req, res) => {
  *       500:
  *         description: Error del servidor
  */
-router.post('/login', authLimiter, async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Por favor proporciona email y password',
+        message: "Por favor proporciona email y password",
       });
     }
 
@@ -271,31 +311,40 @@ router.post('/login', authLimiter, async (req, res) => {
     if (error) {
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas',
+        message: "Credenciales inválidas",
       });
     }
 
-    console.log('✅ Usuario ha iniciado sesión:', {
+    console.log("✅ Usuario ha iniciado sesión:", {
       userId: data.user.id,
       email: data.user.email,
       username: data.user.user_metadata?.username,
       timestamp: new Date().toISOString(),
     });
 
+    // ✅ ACTUALIZADO: Incluir tokens de sesión en la respuesta
     res.json({
       success: true,
-      message: 'Login exitoso',
+      message: "Login exitoso",
       user: {
         id: data.user.id,
         email: data.user.email,
         username: data.user.user_metadata?.username,
       },
+      // ✅ NUEVO: Agregar sesión con tokens
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      },
     });
   } catch (error) {
-    logger.error('Error en login:', error);
+    logger.error("Error en login:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -337,7 +386,7 @@ router.post('/login', authLimiter, async (req, res) => {
  *       500:
  *         description: Error del servidor
  */
-router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
+router.post("/logout", csrfProtection, authMiddleware, async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
 
@@ -346,19 +395,22 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
     if (error) {
       return res.status(500).json({
         success: false,
-        message: 'Error al cerrar sesión',
+        message: "Error al cerrar sesión",
       });
     }
 
     res.json({
       success: true,
-      message: 'Sesión cerrada exitosamente',
+      message: "Sesión cerrada exitosamente",
     });
   } catch (error) {
-    logger.error('Error en logout:', error);
+    logger.error("Error en logout:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -400,7 +452,7 @@ router.post('/logout', csrfProtection, authMiddleware, async (req, res) => {
  *       500:
  *         description: Error del servidor
  */
-router.get('/session', async (req, res) => {
+router.get("/session", async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
 
@@ -412,7 +464,7 @@ router.get('/session', async (req, res) => {
     if (error || !session) {
       return res.status(401).json({
         success: false,
-        message: 'No hay sesión activa',
+        message: "No hay sesión activa",
       });
     }
 
@@ -429,10 +481,13 @@ router.get('/session', async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('Error verificando sesión:', error);
+    logger.error("Error verificando sesión:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -443,7 +498,7 @@ router.get('/session', async (req, res) => {
  *   post:
  *     summary: Refrescar sesión
  *     tags: [Autenticación]
- *     description: Renueva el token de sesión actual (requiere CSRF token)
+ *     description: Renueva el token de sesión actual y devuelve nuevos tokens (requiere CSRF token)
  *     security:
  *       - cookieAuth: []
  *     parameters:
@@ -472,10 +527,24 @@ router.get('/session', async (req, res) => {
  *                   properties:
  *                     id:
  *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
  *                     email:
  *                       type: string
+ *                       example: "usuario@example.com"
  *                     username:
  *                       type: string
+ *                       example: "usuario123"
+ *                 session:
+ *                   type: object
+ *                   properties:
+ *                     access_token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                       description: Nuevo token JWT de acceso
+ *                     refresh_token:
+ *                       type: string
+ *                       example: "v1.MR5twgY-z..."
+ *                       description: Nuevo token de refresco
  *       401:
  *         description: No se pudo refrescar la sesión
  *       403:
@@ -483,7 +552,7 @@ router.get('/session', async (req, res) => {
  *       500:
  *         description: Error del servidor
  */
-router.post('/refresh', csrfProtection, async (req, res) => {
+router.post("/refresh", csrfProtection, async (req, res) => {
   try {
     const supabase = createSupabaseServerClient(req, res);
 
@@ -492,24 +561,33 @@ router.post('/refresh', csrfProtection, async (req, res) => {
     if (error) {
       return res.status(401).json({
         success: false,
-        message: 'No se pudo refrescar la sesión',
+        message: "No se pudo refrescar la sesión",
       });
     }
 
+    // ✅ ACTUALIZADO: Incluir nuevos tokens en la respuesta
     res.json({
       success: true,
-      message: 'Sesión refrescada',
+      message: "Sesión refrescada",
       user: {
         id: data.user.id,
         email: data.user.email,
         username: data.user.user_metadata?.username,
       },
+      // ✅ NUEVO: Agregar nuevos tokens
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      },
     });
   } catch (error) {
-    logger.error('Error refrescando sesión:', error);
+    logger.error("Error refrescando sesión:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
