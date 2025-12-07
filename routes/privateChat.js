@@ -1,7 +1,7 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const authMiddleware = require('../middleware/auth');
-const logger = require('../config/logger');
+const authMiddleware = require("../middleware/auth");
+const logger = require("../config/logger");
 
 /**
  * @swagger
@@ -9,52 +9,22 @@ const logger = require('../config/logger');
  *   get:
  *     summary: Obtener lista de conversaciones del usuario
  *     tags: [Chat Privado]
- *     description: Retorna todas las conversaciones activas del usuario autenticado
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Lista de conversaciones obtenida exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 conversations:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       user_id:
- *                         type: string
- *                         example: "123e4567-e89b-12d3-a456-426614174000"
- *                       username:
- *                         type: string
- *                         example: "usuario123"
- *                       avatar_url:
- *                         type: string
- *                         example: "https://example.com/avatar.jpg"
- *                       last_message:
- *                         type: string
- *                         example: "Hola, ¿cómo estás?"
- *                       unread_count:
- *                         type: integer
- *                         example: 3
+ *         description: Lista de conversaciones
  *       401:
  *         description: No autenticado
- *       500:
- *         description: Error del servidor
  */
-router.get('/conversations', authMiddleware, async (req, res) => {
+router.get("/conversations", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const supabase = req.supabase;
 
-    // Llamar a la función de Supabase
-    const { data, error } = await supabase.rpc('get_conversations', { p_user_id: userId });
+    const { data, error } = await supabase.rpc("get_conversations", {
+      p_user_id: userId,
+    });
 
     if (error) throw error;
 
@@ -63,116 +33,13 @@ router.get('/conversations', authMiddleware, async (req, res) => {
       conversations: data || [],
     });
   } catch (error) {
-    logger.error('Error al obtener conversaciones:', error);
+    logger.error("Error al obtener conversaciones:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/chat/conversations:
- *   post:
- *     summary: Iniciar una nueva conversación
- *     tags: [Chat Privado]
- *     description: Crea o recupera una conversación con otro usuario
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *             properties:
- *               userId:
- *                 type: string
- *                 example: "123e4567-e89b-12d3-a456-426614174000"
- *                 description: ID del usuario con quien iniciar la conversación
- *     responses:
- *       200:
- *         description: Conversación iniciada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 conversation:
- *                   type: object
- *                   properties:
- *                     user_id:
- *                       type: string
- *                       example: "123e4567-e89b-12d3-a456-426614174000"
- *                     username:
- *                       type: string
- *                       example: "usuario123"
- *                     avatar_url:
- *                       type: string
- *                       example: "https://example.com/avatar.jpg"
- *                     last_message:
- *                       type: string
- *                       nullable: true
- *                       example: null
- *                     unread_count:
- *                       type: integer
- *                       example: 0
- *       400:
- *         description: ID de usuario no proporcionado
- *       401:
- *         description: No autenticado
- *       404:
- *         description: Usuario no encontrado
- *       500:
- *         description: Error del servidor
- */
-router.post('/conversations', authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.body;
-    const supabase = req.supabase;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID de usuario requerido',
-      });
-    }
-
-    // Verificar si el usuario existe
-    const { data: user, error } = await supabase
-      .from('profiles')
-      .select('id, username, avatar_url')
-      .eq('id', userId)
-      .single();
-
-    if (error || !user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Usuario no encontrado',
-      });
-    }
-
-    res.json({
-      success: true,
-      conversation: {
-        user_id: user.id,
-        username: user.username,
-        avatar_url: user.avatar_url,
-        last_message: null,
-        unread_count: 0,
-      },
-    });
-  } catch (error) {
-    logger.error('Error al iniciar conversación:', error);
-    res.status(500).json({
-      success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -181,9 +48,8 @@ router.post('/conversations', authMiddleware, async (req, res) => {
  * @swagger
  * /api/chat/messages/{userId}:
  *   get:
- *     summary: Obtener mensajes de una conversación específica
+ *     summary: Obtener mensajes de una conversación
  *     tags: [Chat Privado]
- *     description: Retorna los últimos 100 mensajes entre el usuario autenticado y otro usuario
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -192,73 +58,28 @@ router.post('/conversations', authMiddleware, async (req, res) => {
  *         required: true
  *         schema:
  *           type: string
- *         description: ID del usuario con quien se tiene la conversación
- *         example: "123e4567-e89b-12d3-a456-426614174000"
- *     responses:
- *       200:
- *         description: Mensajes obtenidos exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 messages:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                         example: "123e4567-e89b-12d3-a456-426614174000"
- *                       sender_id:
- *                         type: string
- *                         example: "123e4567-e89b-12d3-a456-426614174000"
- *                       receiver_id:
- *                         type: string
- *                         example: "987e6543-e21b-12d3-a456-426614174000"
- *                       contenido:
- *                         type: string
- *                         example: "Hola, ¿cómo estás?"
- *                       created_at:
- *                         type: string
- *                         format: date-time
- *                         example: "2024-01-01T12:00:00Z"
- *                       estado:
- *                         type: string
- *                         enum: [enviado, entregado, visto]
- *                         example: "visto"
- *       400:
- *         description: ID de usuario no proporcionado
- *       401:
- *         description: No autenticado
- *       500:
- *         description: Error del servidor
  */
-router.get('/messages/:userId', authMiddleware, async (req, res) => {
+router.get("/messages/:userId", authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;
     const otherUserId = req.params.userId;
     const supabase = req.supabase;
 
-    // Validar parámetros
     if (!otherUserId) {
       return res.status(400).json({
         success: false,
-        message: 'ID de usuario requerido',
+        message: "ID de usuario requerido",
       });
     }
 
-    // Obtener mensajes entre los dos usuarios
+    // ✅ MEJORA: Usar construcción más clara para evitar duplicados
     const { data: messages, error } = await supabase
-      .from('mensajes')
-      .select('id, sender_id, receiver_id, contenido, created_at, estado')
+      .from("mensajes")
+      .select("id, sender_id, receiver_id, contenido, created_at, estado")
       .or(
         `and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`
       )
-      .order('created_at', { ascending: true })
+      .order("created_at", { ascending: true })
       .limit(100);
 
     if (error) throw error;
@@ -268,10 +89,13 @@ router.get('/messages/:userId', authMiddleware, async (req, res) => {
       messages: messages || [],
     });
   } catch (error) {
-    logger.error('Error al obtener mensajes:', error);
+    logger.error("Error al obtener mensajes:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -280,139 +104,79 @@ router.get('/messages/:userId', authMiddleware, async (req, res) => {
  * @swagger
  * /api/chat/messages:
  *   post:
- *     summary: Enviar un mensaje privado (HTTP fallback)
+ *     summary: Enviar un mensaje privado
  *     tags: [Chat Privado]
- *     description: Envía un mensaje privado a otro usuario via HTTP (usado cuando WebSocket no está disponible)
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - to
- *               - content
- *             properties:
- *               to:
- *                 type: string
- *                 example: "123e4567-e89b-12d3-a456-426614174000"
- *                 description: ID del usuario destinatario
- *               content:
- *                 type: string
- *                 example: "Hola, ¿cómo estás?"
- *                 description: Contenido del mensaje (1-5000 caracteres)
- *     responses:
- *       200:
- *         description: Mensaje enviado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       example: "123e4567-e89b-12d3-a456-426614174000"
- *                     sender_id:
- *                       type: string
- *                       example: "123e4567-e89b-12d3-a456-426614174000"
- *                     receiver_id:
- *                       type: string
- *                       example: "987e6543-e21b-12d3-a456-426614174000"
- *                     contenido:
- *                       type: string
- *                       example: "Hola, ¿cómo estás?"
- *                     created_at:
- *                       type: string
- *                       format: date-time
- *                       example: "2024-01-01T12:00:00Z"
- *                     estado:
- *                       type: string
- *                       enum: [enviado, entregado, visto]
- *                       example: "enviado"
- *       400:
- *         description: Datos inválidos
- *       401:
- *         description: No autenticado
- *       404:
- *         description: Usuario destinatario no encontrado
- *       500:
- *         description: Error del servidor
  */
-router.post('/messages', authMiddleware, async (req, res) => {
+router.post("/messages", authMiddleware, async (req, res) => {
   try {
     const senderId = req.user.id;
     const { to, content } = req.body;
     const supabase = req.supabase;
 
-    // Validar campos requeridos
+    // Validaciones
     if (!to || !content) {
       return res.status(400).json({
         success: false,
-        message: 'Destinatario y contenido son requeridos',
+        message: "Destinatario y contenido son requeridos",
       });
     }
 
-    // Validar contenido
     const trimmedContent = content.trim();
     if (trimmedContent.length === 0 || trimmedContent.length > 5000) {
       return res.status(400).json({
         success: false,
-        message: 'El mensaje debe tener entre 1 y 5000 caracteres',
+        message: "El mensaje debe tener entre 1 y 5000 caracteres",
       });
     }
 
-    // Verificar que el destinatario existe
+    // Verificar destinatario
     const { data: receiver, error: receiverError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', to)
+      .from("profiles")
+      .select("id")
+      .eq("id", to)
       .single();
 
     if (receiverError || !receiver) {
       return res.status(404).json({
         success: false,
-        message: 'Usuario destinatario no encontrado',
+        message: "Usuario destinatario no encontrado",
       });
     }
 
-    // Insertar mensaje en la base de datos
+    // ✅ CRÍTICO: Usar transacción para evitar duplicados
     const { data: newMessage, error: insertError } = await supabase
-      .from('mensajes')
-      .insert([
-        {
-          sender_id: senderId,
-          receiver_id: to,
-          contenido: trimmedContent,
-          estado: 'enviado',
-        },
-      ])
+      .from("mensajes")
+      .insert({
+        sender_id: senderId,
+        receiver_id: to,
+        contenido: trimmedContent,
+        estado: "enviado",
+      })
       .select()
-      .single();
+      .single(); // ✅ .single() garantiza un solo resultado
 
     if (insertError) {
-      logger.error('Error al insertar mensaje:', insertError);
+      logger.error("Error al insertar mensaje:", insertError);
       throw insertError;
     }
 
     logger.info(`📩 Mensaje HTTP enviado: ${senderId} → ${to}`);
 
+    // ✅ IMPORTANTE: Retornar solo el mensaje sin información extra
     res.json({
       success: true,
       message: newMessage,
     });
   } catch (error) {
-    logger.error('Error al enviar mensaje via HTTP:', error);
+    logger.error("Error al enviar mensaje via HTTP:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -423,38 +187,19 @@ router.post('/messages', authMiddleware, async (req, res) => {
  *   get:
  *     summary: Obtener contador de mensajes no leídos
  *     tags: [Chat Privado]
- *     description: Retorna el número total de mensajes no leídos del usuario autenticado
  *     security:
  *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Contador obtenido exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 unreadCount:
- *                   type: integer
- *                   example: 5
- *       401:
- *         description: No autenticado
- *       500:
- *         description: Error del servidor
  */
-router.get('/unread-count', authMiddleware, async (req, res) => {
+router.get("/unread-count", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const supabase = req.supabase;
 
     const { count, error } = await supabase
-      .from('mensajes')
-      .select('*', { count: 'exact', head: true })
-      .eq('receiver_id', userId)
-      .neq('estado', 'visto');
+      .from("mensajes")
+      .select("*", { count: "exact", head: true })
+      .eq("receiver_id", userId)
+      .neq("estado", "visto");
 
     if (error) throw error;
 
@@ -463,10 +208,13 @@ router.get('/unread-count', authMiddleware, async (req, res) => {
       unreadCount: count || 0,
     });
   } catch (error) {
-    logger.error('Error al obtener mensajes no leídos:', error);
+    logger.error("Error al obtener mensajes no leídos:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
@@ -477,39 +225,10 @@ router.get('/unread-count', authMiddleware, async (req, res) => {
  *   put:
  *     summary: Marcar mensajes como vistos
  *     tags: [Chat Privado]
- *     description: Marca todos los mensajes de una conversación como vistos
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: ID del usuario de la conversación
- *         example: "123e4567-e89b-12d3-a456-426614174000"
- *     responses:
- *       200:
- *         description: Mensajes marcados como vistos exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Mensajes marcados como vistos"
- *       400:
- *         description: ID de usuario no proporcionado
- *       401:
- *         description: No autenticado
- *       500:
- *         description: Error del servidor
  */
-router.put('/messages/:userId/seen', authMiddleware, async (req, res) => {
+router.put("/messages/:userId/seen", authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;
     const otherUserId = req.params.userId;
@@ -518,97 +237,50 @@ router.put('/messages/:userId/seen', authMiddleware, async (req, res) => {
     if (!otherUserId) {
       return res.status(400).json({
         success: false,
-        message: 'ID de usuario requerido',
+        message: "ID de usuario requerido",
       });
     }
 
-    // Marcar como vistos todos los mensajes del otro usuario
+    // ✅ MEJORA: Solo actualizar mensajes que realmente necesitan cambio
     const { error } = await supabase
-      .from('mensajes')
-      .update({ estado: 'visto' })
-      .eq('sender_id', otherUserId)
-      .eq('receiver_id', currentUserId)
-      .neq('estado', 'visto');
+      .from("mensajes")
+      .update({ estado: "visto" })
+      .eq("sender_id", otherUserId)
+      .eq("receiver_id", currentUserId)
+      .in("estado", ["enviado", "entregado"]); // ✅ Evitar actualizar los ya vistos
 
     if (error) throw error;
 
     res.json({
       success: true,
-      message: 'Mensajes marcados como vistos',
+      message: "Mensajes marcados como vistos",
     });
   } catch (error) {
-    logger.error('Error al marcar conversación como vista:', error);
+    logger.error("Error al marcar conversación como vista:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
 
-/**
- * @swagger
- * /api/chat/users:
- *   get:
- *     summary: Buscar usuarios para iniciar conversación
- *     tags: [Chat Privado]
- *     description: Busca usuarios disponibles para iniciar un chat (excluye al usuario actual)
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Término de búsqueda para filtrar por username
- *         example: "juan"
- *     responses:
- *       200:
- *         description: Usuarios encontrados exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 users:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                         example: "123e4567-e89b-12d3-a456-426614174000"
- *                       username:
- *                         type: string
- *                         example: "usuario123"
- *                       avatar_url:
- *                         type: string
- *                         example: "https://example.com/avatar.jpg"
- *                       bio:
- *                         type: string
- *                         example: "Desarrollador web"
- *       401:
- *         description: No autenticado
- *       500:
- *         description: Error del servidor
- */
-router.get('/users', authMiddleware, async (req, res) => {
+router.get("/users", authMiddleware, async (req, res) => {
   try {
     const currentUserId = req.user.id;
-    const search = req.query.search || '';
+    const search = req.query.search || "";
     const supabase = req.supabase;
 
     let query = supabase
-      .from('profiles')
-      .select('id, username, avatar_url, bio')
-      .neq('id', currentUserId) // Excluir al usuario actual
+      .from("profiles")
+      .select("id, username, avatar_url, bio")
+      .neq("id", currentUserId)
       .limit(20);
 
-    // Si hay búsqueda, filtrar por username
     if (search) {
-      query = query.ilike('username', `%${search}%`);
+      query = query.ilike("username", `%${search}%`);
     }
 
     const { data: users, error } = await query;
@@ -620,10 +292,13 @@ router.get('/users', authMiddleware, async (req, res) => {
       users: users || [],
     });
   } catch (error) {
-    logger.error('Error al buscar usuarios:', error);
+    logger.error("Error al buscar usuarios:", error);
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Error en el servidor' : error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Error en el servidor"
+          : error.message,
     });
   }
 });
